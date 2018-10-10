@@ -1,0 +1,113 @@
+#!/bin/bash
+
+dir='.'
+
+while [[ $1 ]]; do
+	if [[ $1 == "-h" || $1 == "--help" ]]; then
+		echo "cpcl: Copy Clean - clean directory of redundant files."
+		echo "USAGE: cpcl -[h|a N] [path]"
+		echo "     -h     | --help     : display this page."
+		echo "     -a 'N' | --auto 'N' : don't prompt for input, automatically chooses Nth option"
+		exit
+	elif [[ $1 == "-a" || $1 == "--auto" ]]; then
+		shift
+		autopick=$1
+	else
+		dir=$1
+	fi
+	shift
+done
+
+if [[ $1 && !$(file $dir) == "$dir: directory" ]]; then
+	echo "Error: $dir is not a directory"
+	exit
+fi
+
+IFS=$'\n'
+
+matched=$@
+matches=$@
+files=$@ # files and hashes are parallel arrays
+hashes=$@
+
+function in_array { # $1: item, $2: array
+	arg1=$1
+	shift
+	arr=( $@ )
+	for s in ${arr[@]}; do
+		if [[ "$arg1" == "$s" ]]; then
+			echo 't'
+			exit
+		fi
+	done
+	echo 'f'
+}
+
+function SHA1 { # $1: file
+	echo $(openssl dgst -sha1 $1 | cut -d " " -f 2)
+}
+
+# generate parallel arrays of scanned filenames and their SHA1 hashes
+for f in $(find $dir); do
+	if [[ $(file $f | grep ": directory") ]]; then
+		continue
+       	fi
+	files+=("$f")
+	hashes+=("$(SHA1 $f)")
+done
+
+for file in ${files[@]}; do
+	matches=$@
+	if [[ $(in_array $file ${matched[@]}) == 't' ]]; then 
+		continue
+	fi
+	current_hash=$(SHA1 $file)
+	for i in ${!files[@]}; do
+		if [[ $file == ${files[$i]} ]]; then continue; fi
+		if [[ $current_hash == ${hashes[$i]} ]]; then
+			matches+=("${files[$i]}")
+			matched+=("${files[$i]}")
+		fi
+	done
+	if [[ ${matches[@]} ]]; then
+		printf "0: SKIP   1: $file"
+		n=2
+		for match in ${matches[@]}; do
+			printf "   $n: $match"
+			n=$(($n+1))
+		done
+		printf "\n"
+		if [[ $autopick ]]; then
+			input=$autopick
+		else
+			printf "Matches found. Pick item from the above list to keep: "
+			read input
+		fi
+		if [[ $(in_array $input $(seq 0 $((n-1)))) == 'f' ]]; then
+			input=0
+		fi
+		case "$input" in
+			0)
+				unset matches
+				echo "Skipping..."
+				printf "\n"
+				continue
+				;;
+			1)
+				keep=$file
+				;;
+			*)
+				keep=${matches[$input-1]}
+				matches+="$file"
+				;;
+		esac
+		#echo "Keeping $keep"
+		for f in ${matches[@]}; do
+			if [[ "$f" != "$keep" ]]; then
+				rm -v "$f"
+			fi
+		done
+		printf "\n"
+		unset matches
+	fi
+done

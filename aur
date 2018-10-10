@@ -1,0 +1,22 @@
+#!/bin/bash
+
+if [[ $1 == 'install' ]]; then 
+	if [[ $USER == 'root' ]]; then
+		echo "Do not run 'aur install' as root!"
+		exit
+	fi
+	
+	mkdir -p /tmp/aursrc/"$2"
+
+	if [[ $(git clone https://aur.archlinux.org/$2.git /tmp/aursrc/$2 2>&1 | grep "empty repository") ]]; then
+		echo "error: target not found: $2"
+	else
+		cd /tmp/aursrc/"$2"
+		makepkg -sri
+	fi
+	rm -rf /tmp/aursrc/"$2"
+else
+	echo "USAGE: aur [install] [package-name]"
+	echo "'aur search' to be implemented soon"
+fi
+ 

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+for dir in ${PATH//:/ }; do
+	ls $dir | grep $1
+done

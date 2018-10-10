@@ -1,0 +1,20 @@
+#!/bin/bash
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+	echo "Script to generate a random UNIX timestamp, for recreating 4chan default filenames."
+	echo "USAGE: gentimestamp"
+	echo "       For renaming a file: mv [file] \$(gentimestamp)[.jpg,.png,.gif/etc]"
+	exit
+fi
+
+echo 1$(($RANDOM%2+4))$(($RANDOM%3))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))\
+$(($RANDOM%10))
