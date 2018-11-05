@@ -1,0 +1,117 @@
+#!/bin/bash
+
+sync='n'
+
+while [[ $1 ]]; do
+	if [[ $1 == "-h" || $1 == "--help" ]]; then
+		echo "dirsync: Directory Sync - Synchronoises the files between two directories"
+		echo "USAGE: dirsync -[h|s (option)] dir1 dir2"
+		echo "     -h         | --help: show help"
+		echo "     -s [n|o|p] | --sync: decide which file to sync in a conflict"
+		echo "                          n:newer (default), o:older, p:prompt"
+		exit
+	elif [[ $1 == "-s" || $1 == "--sync" ]]; then
+		shift
+		if [[ !$1 || $1 != 'n' || $1 != 'o' || $1 != 'p' ]]; then
+			echo "--sync must be followed with n, o, or p"
+			exit
+		fi
+		sync=$1
+	else
+		if [[ $dir1 ]]; then
+			dir2=$1
+		else
+			dir1=$1
+		fi
+	fi
+	shift
+done
+
+if [[ $dir1 == '' || $dir2 == '' ]]; then
+	echo "dirsync requires two directories to be specified"
+	exit
+fi
+
+IFS=$'\n'
+
+copy_missing(){
+	for f in $(ls -A $1); do
+		cp -nvr $1/$f $2	
+#		if [[ $(file $2/$f | grep "No such file or directory") != '' ]]; then
+#			cp -rv $1/$f $2
+#		fi
+	done
+}
+
+modifyts(){
+	stat $1 | grep Modify | tr -d 'Modify: -.'
+}
+
+sha1(){
+	echo $(openssl dgst -sha1 -hmac "key" $1 | cut -d " " -f 2)
+}
+
+recursive()(
+	rdir1=$1
+	rdir2=$2
+	
+	echo "descending into $rdir1"
+	
+	copy_missing $rdir1 $rdir2
+	copy_missing $rdir2 $rdir1
+	
+	for file in $(ls -A $rdir1); do
+
+		#if [[ ( $(file $rdir1/$file) == "*: directory" && $(file $rdir2/$file) != "*: directory" ) || ( $(file $rdir1/$file) != "*: directory" && $(file $rdir2/$file) == "*: directory") ]]; then
+		#	continue
+		#fi
+
+		moddate1=$(modifyts $rdir1/$file)
+		moddate2=$(modifyts $rdir2/$file)
+
+		if [[ $(file $rdir1/$file | grep ": directory") == '' ]]; then
+
+			sha1f1=$(sha1 $rdir1/$file)
+			sha1f2=$(sha1 $rdir2/$file)
+
+			if [[ $moddate1 > $moddate2 && $sha1f1 != $sha1f2 ]]; then
+				if [[ $sync == 'n' ]]; then
+					cp -v $rdir1/$file $rdir2/$file
+				elif [[ $sync == 'o' ]]; then
+					cp -v $rdir2/$file $rdir1/$file
+				elif [[ $sync == 'p' ]]; then
+					cp -iv $rdir1/$file $rdir2/$file
+				fi
+		
+			elif [[ $moddate2 > $moddate1 && $sha1f1 != $sha1f2 ]]; then
+				if [[ $sync == 'n' ]]; then
+					cp -v $rdir2/$file $rdir1/$file
+				elif [[ $sync == 'o' ]]; then
+					cp -v $rdir1/$file $rdir2/$file
+				elif [[ $sync == 'p' ]]; then
+					cp -iv $rdir2/$file $rdir1/$file
+				fi
+			fi
+		
+		elif [[ $(modifyts $rdir1/$file) != $(modifyts $rdir2/$file) ]]; then
+			recursive $rdir1/$file $rdir2/$file
+		fi
+	done
+
+)
+
+recursive $dir1 $dir2
+
+
+# logic:
+# 1. check if there are any files in one directory missing in the others, sync those files
+# 2. 'stat' the files and directories in each given directory
+# 3. hash the files in each given directory
+# 4. if the modify date and hash is different and it is a file, sync the newest file
+# 5. if the modify date is different and it is a directory, descend into directory and GOTO 1
+# 6. end
+
+# OPTIONS:
+# -h | --help: show help
+# -s | --sync: decide which file to sync in a conflict
+#              OPTIONS: n|newer (default), o|older, p|prompt
