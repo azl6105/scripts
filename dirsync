@@ -48,7 +48,7 @@ modifyts(){
 }
 
 sha1(){
-	echo $(openssl dgst -sha1 -hmac "key" $1 | cut -d " " -f 2)
+	echo $(openssl dgst -sha1 -hmac "key" $1 | rev | cut -d " " -f 1 )
 }
 
 recursive()(
