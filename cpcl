@@ -7,7 +7,8 @@ while [[ $1 ]]; do
 		echo "cpcl: Copy Clean - clean directory of redundant files."
 		echo "USAGE: cpcl -[h|a N] [path]"
 		echo "     -h     | --help     : display this page."
-		echo "     -a 'N' | --auto 'N' : don't prompt for input, automatically chooses Nth option"
+		echo "     -a 'N' | --auto 'N' : don't prompt for input, automatically keeps Nth option"
+		echo "                           specify 'last' to keep the last listed option"
 		exit
 	elif [[ $1 == "-a" || $1 == "--auto" ]]; then
 		shift
@@ -34,17 +35,19 @@ function in_array { # $1: item, $2: array
 	arg1=$1
 	shift
 	arr=( $@ )
+
 	for s in ${arr[@]}; do
 		if [[ "$arg1" == "$s" ]]; then
 			echo 't'
 			exit
 		fi
 	done
+
 	echo 'f'
 }
 
 function SHA1 { # $1: file
-	echo $(openssl dgst -sha1 $1 | cut -d " " -f 2)
+	echo $(openssl dgst -sha1 $1 | rev | cut -d' ' -f1)
 }
 
 # generate parallel arrays of scanned filenames and their SHA1 hashes
@@ -57,11 +60,16 @@ for f in $(find $dir); do
 done
 
 for file in ${files[@]}; do
+
 	matches=$@
+
 	if [[ $(in_array $file ${matched[@]}) == 't' ]]; then 
 		continue
+
 	fi
+
 	current_hash=$(SHA1 $file)
+
 	for i in ${!files[@]}; do
 		if [[ $file == ${files[$i]} ]]; then continue; fi
 		if [[ $current_hash == ${hashes[$i]} ]]; then
@@ -69,23 +77,33 @@ for file in ${files[@]}; do
 			matched+=("${files[$i]}")
 		fi
 	done
+
 	if [[ ${matches[@]} ]]; then
+
 		printf "0: SKIP   1: $file"
 		n=2
+
 		for match in ${matches[@]}; do
 			printf "   $n: $match"
 			n=$(($n+1))
 		done
 		printf "\n"
+
 		if [[ $autopick ]]; then
-			input=$autopick
+			if [[ $autopick == 'last' ]]; then
+				input=$((n-1))
+			else
+				input=$autopick
+			fi
 		else
 			printf "Matches found. Pick item from the above list to keep: "
 			read input
 		fi
+
 		if [[ $(in_array $input $(seq 0 $((n-1)))) == 'f' ]]; then
 			input=0
 		fi
+
 		case "$input" in
 			0)
 				unset matches
@@ -101,12 +119,13 @@ for file in ${files[@]}; do
 				matches+="$file"
 				;;
 		esac
-		#echo "Keeping $keep"
+		
 		for f in ${matches[@]}; do
 			if [[ "$f" != "$keep" ]]; then
 				rm -v "$f"
 			fi
 		done
+		
 		printf "\n"
 		unset matches
 	fi
