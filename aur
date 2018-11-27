@@ -1,6 +1,22 @@
 #!/bin/bash
 
-if [[ $1 == 'install' ]]; then 
+mkdir -p /tmp/aursrc
+
+function showhelp {
+	echo "USAGE: aur [help | install | search | info] <PACKAGE-NAME>"
+	echo "       help    : show this page"
+	echo "       install : install specified package"
+	echo "       search  : search aur by name for specified string"
+	echo "                 results are stored in /tmp/aursrc/search"
+	echo "       info    : show details about specified package"
+	echo "                 not yet implemented"
+
+}
+
+if [[ $1 == 'help' ]]; then
+	showhelp
+
+elif [[ $1 == 'install' ]]; then 
 	if [[ $USER == 'root' ]]; then
 		echo "Do not run 'aur install' as root!"
 		exit
@@ -15,8 +31,44 @@ if [[ $1 == 'install' ]]; then
 		makepkg -sri
 	fi
 	rm -rf /tmp/aursrc/"$2"
+
+elif [[ $1 == 'search' ]]; then
+
+	printf "Searching."
+
+	pages=$(curl -s "https://aur.archlinux.org/packages/?O=0&SeB=n&K=$2&outdated=&SB=n&SO=a&PP=250&do_Search=Go" | grep "Page" | head -n 1 | tr " " $'\n' | tail -n 1 | cut -d '.' -f 1)
+	
+	printf "."
+
+	if [[ $(curl -s "https://aur.archlinux.org/packages/?O=0&SeB=n&K=$2&outdated=&SB=n&SO=a&PP=250&do_Search=Go" | grep "No packages matched your search criteria") ]]; then
+		echo "."
+		echo "No results found for '$2.'"
+		exit
+	fi
+
+	cat /dev/null > /tmp/aursrc/search
+
+	function searchpage {
+		pkg=$1
+		page=$2
+		echo $(curl -s "https://aur.archlinux.org/packages/?O=$((250*(page-1)))&SeB=n&K=${pkg}&outdated=&SB=n&SO=a&PP=250&do_Search=Go" 2>&1 | cat) | tr \< $'\n' | grep "a href=\"/packages/[^\"?]" | cut -d ">" -f 2 
+	}
+	
+	count=1
+	while [ $count -le $pages ]; do
+		searchpage $2 $count >> /tmp/aursrc/search
+		printf "."
+		count=$((count+1))
+	done
+
+	echo " results found!"
+	echo
+
+	more /tmp/aursrc/search
+
+
 else
-	echo "USAGE: aur [install] [package-name]"
-	echo "'aur search' to be implemented soon"
+	showhelp
 fi
  
+
